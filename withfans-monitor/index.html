@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>一直娱实时收藏监测看板</title>
+  <style>
+    :root {
+      --bg-page: #f5f7fa;
+      --card-bg: #ffffff;
+      --border-color: #e5e7eb;
+      --text-main: #111827;
+      --text-muted: #6b7280;
+      --blue-primary: #2563eb;
+      --blue-light: #eff6ff;
+      --teal-primary: #0891b2;
+      --purple-primary: #7c3aed;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+      background-color: var(--bg-page);
+      color: var(--text-main);
+      padding: 16px;
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+    }
+
+    /* 登录遮罩层 */
+    .login-overlay {
+      position: fixed; inset: 0; background: var(--bg-page);
+      display: flex; align-items: center; justify-content: center; z-index: 100; padding: 20px;
+    }
+    .login-box {
+      background: #fff; border: 1px solid var(--border-color); border-radius: 16px;
+      padding: 28px 24px; width: 100%; max-width: 380px; box-shadow: 0 4px 20px rgba(0,0,0,0.04);
+    }
+    .login-box h2 { font-size: 18px; margin-bottom: 6px; }
+    .login-box p { font-size: 13px; color: var(--text-muted); margin-bottom: 18px; }
+    .form-group { margin-bottom: 14px; }
+    .form-group label { display: block; font-size: 13px; color: var(--text-muted); margin-bottom: 4px; }
+    .form-group input {
+      width: 100%; padding: 10px 12px; border: 1px solid var(--border-color);
+      border-radius: 10px; font-size: 14px; outline: none;
+    }
+    .form-group input:focus { border-color: var(--blue-primary); }
+    .btn-primary {
+      width: 100%; padding: 10px; background: var(--blue-primary); color: #fff;
+      border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer;
+    }
+
+    /* 顶部授权条 */
+    .top-bar {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 13px; color: var(--text-muted); margin-bottom: 12px; padding: 0 4px;
+    }
+    .top-bar strong { color: var(--text-main); }
+    .logout-btn {
+      background: none; border: none; color: var(--text-muted);
+      text-decoration: underline; cursor: pointer; font-size: 13px;
+    }
+
+    /* 通用卡片 */
+    .card {
+      background: var(--card-bg); border: 1px solid var(--border-color);
+      border-radius: 16px; padding: 18px 20px; margin-bottom: 14px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+    }
+
+    /* 活动标题卡 */
+    .status-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: #f3f4f6; color: #4b5563; font-size: 12px; font-weight: 500;
+      padding: 4px 10px; border-radius: 999px; margin-bottom: 12px;
+    }
+    .status-badge.active { background: #ecfdf5; color: #059669; }
+    .status-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+    .event-title { font-size: 18px; font-weight: 700; margin-bottom: 10px; }
+    .event-meta { font-size: 13px; color: var(--text-muted); display: flex; flex-direction: column; gap: 4px; }
+    .event-meta span strong { color: var(--blue-primary); font-weight: 600; }
+
+    /* 指标网格 */
+    .metrics-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;
+    }
+    .metric-card {
+      background: var(--card-bg); border: 1px solid var(--border-color);
+      border-radius: 16px; padding: 16px 18px; display: flex; flex-direction: column; justify-content: space-between;
+    }
+    .metric-label {
+      font-size: 13px; color: var(--text-muted); font-weight: 500;
+      display: flex; align-items: center; gap: 4px; margin-bottom: 8px;
+    }
+    .metric-value { font-size: 30px; font-weight: 800; letter-spacing: -0.5px; }
+    .metric-value small { font-size: 14px; font-weight: 500; color: var(--text-muted); margin-left: 2px; }
+    .val-blue { color: var(--blue-primary); }
+    .val-teal { color: var(--teal-primary); }
+    .val-purple { color: var(--purple-primary); }
+
+    .sub-pill {
+      display: inline-block; margin-top: 10px; padding: 3px 10px;
+      background: var(--blue-light); color: var(--blue-primary);
+      border: 1px solid #bfdbfe; border-radius: 8px; font-size: 12px; font-weight: 600; width: fit-content;
+    }
+
+    /* 参数输入行 */
+    .param-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    }
+    .param-input-group {
+      display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-muted);
+    }
+    .param-input-group input {
+      width: 64px; padding: 6px 8px; border: 1px solid var(--border-color);
+      border-radius: 8px; font-size: 14px; font-weight: 600; text-align: center;
+    }
+
+    .help-tip {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 15px; height: 15px; border-radius: 50%; border: 1px solid #9ca3af;
+      font-size: 10px; color: #6b7280; cursor: help;
+    }
+
+    /* 明细区 */
+    .detail-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-top: 20px; margin-bottom: 12px; padding: 0 2px;
+    }
+    .detail-header h3 { font-size: 16px; font-weight: 700; }
+    .toolbar {
+      display: flex; gap: 10px; margin-bottom: 14px;
+    }
+    .sort-select {
+      flex: 1; padding: 9px 12px; border: 1px solid var(--border-color);
+      border-radius: 10px; background: #fff; font-size: 13px; color: var(--text-main);
+    }
+    .refresh-btn {
+      padding: 9px 18px; background: var(--blue-primary); color: #fff;
+      border: none; border-radius: 10px; font-size: 13px; font-weight: 600;
+      cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+    }
+    .refresh-btn:active { opacity: 0.85; }
+
+    .log-list { display: flex; flex-direction: column; gap: 8px; }
+    .log-item {
+      background: #fff; border: 1px solid var(--border-color); border-radius: 12px;
+      padding: 12px 16px; display: flex; justify-content: space-between; align-items: center;
+      font-size: 13px;
+    }
+    .log-item.filtered { opacity: 0.55; background: #f9fafb; }
+    .log-time { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+    .log-badge {
+      padding: 2px 8px; border-radius: 6px; font-weight: 700; font-size: 13px;
+    }
+    .log-badge.valid { background: #ecfdf5; color: #059669; }
+    .log-badge.noise { background: #f3f4f6; color: #6b7280; }
+    .log-total { color: var(--text-main); font-weight: 600; }
+
+    @media (max-width: 540px) {
+      .metrics-grid { grid-template-columns: 1fr; }
+      .param-row { flex-direction: column; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 登录验证层 -->
+  <div id="loginOverlay" class="login-overlay">
+    <div class="login-box">
+      <h2>数据看板授权登录</h2>
+      <p>演示账号: <strong>cl_4INS</strong> &nbsp;|&nbsp; 密码: <strong>121460</strong></p>
+      <div class="form-group">
+        <label>授权账号</label>
+        <input type="text" id="usernameInput" value="cl_4INS" placeholder="请输入授权账号" />
+      </div>
+      <div class="form-group">
+        <label>访问密码</label>
+        <input type="password" id="passwordInput" value="121460" placeholder="请输入密码" />
+      </div>
+      <button class="btn-primary" onclick="handleLogin()">进入实时看板</button>
+    </div>
+  </div>
+
+  <!-- 主界面 -->
+  <div class="container">
+    <div class="top-bar">
+      <span>当前授权: <strong id="authUser">cl_4INS</strong></span>
+      <button class="logout-btn" onclick="handleLogout()">退出登录</button>
+    </div>
+
+    <!-- 活动头卡片 -->
+    <div class="card">
+      <div id="statusBadge" class="status-badge">
+        <span class="status-dot"></span>
+        <span id="statusText">检测状态中...</span>
+      </div>
+      <div class="event-title" id="eventTitle">加载中...</div>
+      <div class="event-meta">
+        <span>招募时间: <span id="eventTime">--</span></span>
+        <span>抽选人数: <strong id="winnerDisplay">30名</strong></span>
+      </div>
+    </div>
+
+    <!-- 第一排双卡片：总收藏 & 变动波次 -->
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <div>
+          <div class="metric-label">当前总收藏量</div>
+          <div class="metric-value val-blue"><span id="totalCount">0</span><small>人</small></div>
+        </div>
+        <div class="sub-pill" id="platformTag">一直娱: 0 人</div>
+      </div>
+
+      <div class="metric-card">
+        <div>
+          <div class="metric-label">有效变动波次</div>
+          <div class="metric-value"><span id="waveCount">0</span><small>次</small></div>
+        </div>
+        <div style="font-size: 12px; color: var(--text-muted); margin-top: 10px;">
+          最近更新: <span id="lastUpdated">--</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 第二排：去水预估总收藏 -->
+    <div class="card param-row">
+      <div>
+        <div class="metric-label">
+          去水预估总收藏
+          <span class="help-tip" title="过滤掉单次采集间隔内新增人数 ≤ 阈值的零星波动，仅保留集中关注增量">?</span>
+        </div>
+        <div class="metric-value val-teal"><span id="filteredTotal">0</span><small>人</small></div>
+      </div>
+      <div class="param-input-group">
+        <label for="thresholdInput">去水阈值:</label>
+        <input type="number" id="thresholdInput" value="1" min="0" oninput="renderCalculations()" />
+      </div>
+    </div>
+
+    <!-- 第三排：热度竞争均线 -->
+    <div class="card param-row">
+      <div>
+        <div class="metric-label">
+          热度竞争均线
+          <span class="help-tip" title="去水预估总收藏 ÷ 抽选人数，衡量单个名额的平均热度竞争密度">?</span>
+        </div>
+        <div class="metric-value val-purple"><span id="avgLine">0.0</span><small>人/名额</small></div>
+      </div>
+      <div class="param-input-group">
+        <label for="winnerInput">抽选人数:</label>
+        <input type="number" id="winnerInput" value="30" min="1" oninput="renderCalculations()" />
+      </div>
+    </div>
+
+    <!-- 底部变动明细 -->
+    <div class="detail-header">
+      <h3>收藏变动明细</h3>
+    </div>
+
+    <div class="toolbar">
+      <select id="sortSelect" class="sort-select" onchange="renderCalculations()">
+        <option value="time_desc">时间: 从新到旧(默认)</option>
+        <option value="time_asc">时间: 从旧到新</option>
+        <option value="delta_desc">增量: 从高到低</option>
+      </select>
+      <button class="refresh-btn" onclick="loadData(true)">↻ 立即刷新</button>
+    </div>
+
+    <div id="logList" class="log-list"></div>
+  </div>
+
+  <script>
+    let storeData = null;
+
+    // 登录控制
+    function checkAuth() {
+      const user = sessionStorage.getItem("monitor_user");
+      if (user) {
+        document.getElementById("authUser").textContent = user;
+        document.getElementById("loginOverlay").style.display = "none";
+      }
+    }
+
+    function handleLogin() {
+      const u = document.getElementById("usernameInput").value.trim();
+      const p = document.getElementById("passwordInput").value.trim();
+      if (u === "cl_4INS" && p === "121460") {
+        sessionStorage.setItem("monitor_user", u);
+        checkAuth();
+      } else {
+        alert("账号或密码错误（默认演示账号: cl_4INS / 121460）");
+      }
+    }
+
+    function handleLogout() {
+      sessionStorage.removeItem("monitor_user");
+      document.getElementById("loginOverlay").style.display = "flex";
+    }
+
+    // 加载 JSON 数据
+    async function loadData(isManual = false) {
+      try {
+        const res = await fetch(`./data.json?t=${Date.now()}`);
+        storeData = await res.json();
+        updateHeader();
+        renderCalculations();
+        if (isManual) {
+          const btn = document.querySelector(".refresh-btn");
+          const oldText = btn.innerHTML;
+          btn.innerHTML = "✓ 已同步最新";
+          setTimeout(() => { btn.innerHTML = oldText; }, 1200);
+        }
+      } catch (err) {
+        console.error("加载 data.json 失败:", err);
+      }
+    }
+
+    function updateHeader() {
+      const { meta } = storeData;
+      document.getElementById("eventTitle").textContent = meta.title;
+      document.getElementById("eventTime").textContent = `${meta.start_time} - ${meta.end_time}`;
+      document.getElementById("lastUpdated").textContent = meta.last_updated.slice(5, 16);
+
+      const now = new Date();
+      const end = new Date(meta.end_time.replace(/-/g, "/"));
+      const badge = document.getElementById("statusBadge");
+      const statusText = document.getElementById("statusText");
+      if (now <= end) {
+        badge.classList.add("active");
+        statusText.textContent = "招募进行中";
+      } else {
+        badge.classList.remove("active");
+        statusText.textContent = "活动已结束";
+      }
+    }
+
+    function renderCalculations() {
+      if (!storeData) return;
+      const records = [...storeData.records];
+      const threshold = Math.max(0, Number(document.getElementById("thresholdInput").value) || 0);
+      const winners = Math.max(1, Number(document.getElementById("winnerInput").value) || 1);
+      const sortMode = document.getElementById("sortSelect").value;
+
+      document.getElementById("winnerDisplay").textContent = `${winners}名`;
+
+      const latestTotal = records.length ? records[records.length - 1].total : 0;
+      document.getElementById("totalCount").textContent = latestTotal;
+      document.getElementById("platformTag").textContent = `${storeData.meta.platform}: ${latestTotal} 人`;
+      document.getElementById("waveCount").textContent = records.length;
+
+      // 去水累加：仅统计增量 > 阈值的波次
+      const validSum = records.reduce((acc, item) => {
+        return item.delta > threshold ? acc + item.delta : acc;
+      }, 0);
+
+      document.getElementById("filteredTotal").textContent = validSum;
+      document.getElementById("avgLine").textContent = (validSum / winners).toFixed(1);
+
+      // 排序明细
+      if (sortMode === "time_desc") {
+        records.reverse();
+      } else if (sortMode === "delta_desc") {
+        records.sort((a, b) => b.delta - a.delta);
+      }
+
+      const listEl = document.getElementById("logList");
+      listEl.innerHTML = records.map(r => {
+        const isValid = r.delta > threshold;
+        return `
+          <div class="log-item ${isValid ? "" : "filtered"}">
+            <span class="log-time">${r.time}</span>
+            <span class="log-badge ${isValid ? "valid" : "noise"}">
+              ${r.delta > 0 ? "+" + r.delta : r.delta} 人 ${isValid ? "" : "(已去水)"}
+            </span>
+            <span class="log-total">累计 ${r.total} 人</span>
+          </div>
+        `;
+      }).join("");
+    }
+
+    checkAuth();
+    loadData();
+  </script>
+</body>
+</html>

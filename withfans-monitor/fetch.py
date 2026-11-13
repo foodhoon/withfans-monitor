@@ -32,7 +32,6 @@ def main():
     now_str = datetime.now(BJT).strftime("%Y-%m-%d %H:%M:%S")
 
     try:
-        # 若接口为 GET 请求，将 requests.post 改为 requests.get(..., params=PAYLOAD)
         resp = requests.post(API_URL, headers=HEADERS, data=PAYLOAD, timeout=15)
         res_json = resp.json()
         datas = res_json.get("datas", {})
